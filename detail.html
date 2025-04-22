@@ -245,7 +245,7 @@
         if (!viewer) return;
         
         latticeVisible = !latticeVisible;
-        this.textContent = latticeVisible ? "隐藏晶格" : "显示晶格";
+        this.textContent = latticeVisible ? "显示晶格" : "显示晶格";
         
         // 重新渲染整个结构
         viewer.removeAllModels();
@@ -258,7 +258,7 @@
         if (!viewer) return;
         
         labelsVisible = !labelsVisible;
-        this.textContent = labelsVisible ? "隐藏原子标签" : "显示原子标签";
+        this.textContent = labelsVisible ? "显示原子标签" : "显示原子标签";
         
         // 重新渲染整个结构
         viewer.removeAllModels();
