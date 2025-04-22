@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>材料详情 - Nemesis</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.0.1/3Dmol-min.js"></script>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: flex-start;
+            max-width: 1200px;
+            margin: 20px auto;
+            gap: 20px;
+        }
+        .info {
+            flex: 1;
+            min-width: 300px;
+            max-width: 600px;
+            font-size: 18px;
+            word-break: break-word;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .viewer-container {
+            flex: 1;
+            min-width: 300px;
+            max-width: 600px;
+        }
+        #viewer {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ccc;
+            position: relative;
+        }
+        .info h2 {
+            text-align: center;
+            font-size: 26px;
+            overflow-wrap: break-word;
+            margin-top: 0;
+        }
+        #viewer-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 16px;
+            color: #666;
+            text-align: center;
+        }
+        .button-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 15px;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 8px 16px;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+            margin: 2px;
+        }
+        .download-btn {
+            background-color: #4CAF50;
+        }
+        .download-btn:hover {
+            background-color: #45a049;
+        }
+        .toggle-lattice-btn {
+            background-color: #2196F3;
+        }
+        .toggle-lattice-btn:hover {
+            background-color: #0b7dda;
+        }
+        .toggle-labels-btn {
+            background-color: #9C27B0;
+        }
+        .toggle-labels-btn:hover {
+            background-color: #7B1FA2;
+        }
+        .controls {
+            margin-top: 10px;
+            text-align: center;
+        }
+        label {
+            margin-right: 10px;
+            font-size: 14px;
+        }
+        select {
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="info">
+            <h2 id="formula">加载中...</h2>
+            <p><strong>能量:</strong> <span id="energy"></span> eV</p>
+            <p><strong>质量密度:</strong> <span id="density"></span> g/cm³</p>
+            <p><strong>氮浓度:</strong> <span id="n_concentration"></span>%</p>
+            <p><strong>爆轰能量 (E<sub>d</sub>):</strong> <span id="ed"></span> kJ/g</p>
+            <p><strong>爆轰速度 (V<sub>d</sub>):</strong> <span id="vd"></span> km/s</p>
+            <p><strong>爆轰压力 (P<sub>d</sub>):</strong> <span id="pd"></span> GPa</p>
+            
+
+        </div>
+
+        <div class="viewer-container">
+            <div id="viewer">
+                <div id="viewer-message">加载结构中...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const id = urlParams.get('id');
+    let currentCIF = '';
+    let viewer = null;
+    let latticeVisible = false;
+    let labelsVisible = false;
+    let currentLabelSize = 0.8;
+    let currentLabelColor = 'blue';
+
+    fetch('db.json')
+        .then(response => response.json())
+        .then(data => {
+            const material = data[id];
+            if (!material) {
+                document.getElementById('formula').innerText = "未找到材料数据。";
+                document.getElementById('viewer-message').innerText = "没有结构数据。";
+                return;
+            }
+
+            const formattedFormula = formatFormula(material.formula);
+            document.getElementById('formula').innerHTML = formattedFormula;
+            document.getElementById('energy').innerText = material.energy?.toFixed(3) ?? 'N/A';
+            document.getElementById('density').innerText = material.mass_density?.toFixed(3) ?? 'N/A';
+            document.getElementById('n_concentration').innerText = material.N_concentration?.toFixed(3) ?? 'N/A';
+            document.getElementById('ed').innerText = material.E_d?.toFixed(3) ?? 'N/A';
+            document.getElementById('vd').innerText = material.V_d?.toFixed(3) ?? 'N/A';
+            document.getElementById('pd').innerText = material.P_d?.toFixed(3) ?? 'N/A';
+
+            try {
+                currentCIF = generateCIF(material);
+                viewer = $3Dmol.createViewer(document.getElementById("viewer"), { 
+                    backgroundColor: "white",
+                    defaultZoom: 1.0
+                });
+                viewer.addModel(currentCIF, "cif");
+                
+                // 初始渲染原子和键
+                renderAtomsAndBonds();
+                
+                viewer.zoomTo();
+                viewer.center();
+                viewer.render();
+
+                // 启用所有控件
+                enableControls();
+
+                const messageDiv = document.getElementById("viewer-message");
+                if (messageDiv) messageDiv.remove();
+            } catch (err) {
+                console.error("3D结构渲染失败:", err);
+                document.getElementById('viewer-message').innerText = "加载3D结构失败。";
+            }
+        })
+        .catch(err => {
+            console.error("数据获取失败:", err);
+            document.getElementById('formula').innerText = "加载材料数据失败。";
+            document.getElementById('viewer-message').innerText = "无法获取结构数据。";
+        });
+
+    function renderAtomsAndBonds() {
+        if (!viewer) return;
+        
+        viewer.setStyle({}, { 
+            stick: {}, 
+            sphere: { 
+                scale: 0.3,
+                colorscheme: 'Jmol'
+            } 
+        });
+        
+        // 如果标签可见，添加标签
+        if (labelsVisible) {
+            addAtomLabels();
+        }
+        
+        // 如果晶格可见，添加晶格
+        if (latticeVisible) {
+            viewer.addUnitCell({
+                box: { color: 0x0000ff, radius: 0.1 },
+                a: { color: 0xff0000, radius: 0.1 },
+                b: { color: 0x00ff00, radius: 0.1 },
+                c: { color: 0x0000ff, radius: 0.1 }
+            });
+        }
+        
+        viewer.render();
+    }
+
+    function addAtomLabels() {
+        const atoms = viewer.getModel().selectedAtoms({});
+        atoms.forEach(atom => {
+            viewer.addLabel(atom.elem, {
+                position: atom,
+                fontSize: currentLabelSize,
+                fontColor: currentLabelColor,
+                backgroundColor: 0xeeeeee,
+                backgroundOpacity: 0.7,
+                inFront: true
+            });
+        });
+    }
+
+    function enableControls() {
+        document.getElementById('download-cif').disabled = false;
+        document.getElementById('toggle-lattice').disabled = false;
+        document.getElementById('toggle-labels').disabled = false;
+    }
+
+    // 下载CIF文件
+    document.getElementById('download-cif').addEventListener('click', function() {
+        if (!currentCIF) return;
+        
+        const blob = new Blob([currentCIF], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = material_${id}.cif;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+
+    // 显示晶格
+    document.getElementById('toggle-lattice').addEventListener('click', function() {
+        if (!viewer || latticeVisible) return;
+        
+        latticeVisible = true;
+        this.textContent = "晶格已显示";  // 不再切换隐藏
+        
+        viewer.removeAllModels();
+        viewer.addModel(currentCIF, "cif");
+        renderAtomsAndBonds();
+    });
+    
+    // 显示原子标签
+    document.getElementById('toggle-labels').addEventListener('click', function() {
+        if (!viewer || labelsVisible) return;
+        
+        labelsVisible = true;
+        this.textContent = "标签已显示";  // 不再切换隐藏
+        
+        viewer.removeAllModels();
+        viewer.addModel(currentCIF, "cif");
+        renderAtomsAndBonds();
+    });
+
+    function generateCIF(data) {
+        const { cell, symbols, positions } = data;
+        let cif = "data_generated\n";
+        cif += "_cell_length_a " + cell[0][0].toFixed(6) + "\n";
+        cif += "_cell_length_b " + cell[1][1].toFixed(6) + "\n";
+        cif += "_cell_length_c " + cell[2][2].toFixed(6) + "\n";
+        cif += "_cell_angle_alpha 90\n";
+        cif += "_cell_angle_beta 90\n";
+        cif += "_cell_angle_gamma 90\n";
+        cif += "loop_\n_atom_site_label\n_atom_site_fract_x\n_atom_site_fract_y\n_atom_site_fract_z\n";
+
+        for (let i = 0; i < symbols.length; i++) {
+            const [x, y, z] = positions[i];
+            const fx = x / cell[0][0];
+            const fy = y / cell[1][1];
+            const fz = z / cell[2][2];
+            cif += ${symbols[i]} ${fx.toFixed(6)} ${fy.toFixed(6)} ${fz.toFixed(6)}\n;
+        }
+        return cif;
+    }
+
+    function formatFormula(formula) {
+        return formula.replace(/(\D)(\d+)/g, (_, element, num) => ${element}<sub>${num}</sub>);
+    }
+    </script>
+</body>
+</html>
