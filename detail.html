@@ -91,19 +91,6 @@
         .toggle-labels-btn:hover {
             background-color: #7B1FA2;
         }
-        .controls {
-            margin-top: 10px;
-            text-align: center;
-        }
-        label {
-            margin-right: 10px;
-            font-size: 14px;
-        }
-        select {
-            padding: 5px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-        }
     </style>
 </head>
 <body>
@@ -117,7 +104,11 @@
             <p><strong>爆轰速度 (V<sub>d</sub>):</strong> <span id="vd"></span> km/s</p>
             <p><strong>爆轰压力 (P<sub>d</sub>):</strong> <span id="pd"></span> GPa</p>
             
-
+            <div class="button-container">
+                <button id="download-cif" class="btn download-btn" disabled>下载CIF文件</button>
+                <button id="toggle-lattice" class="btn toggle-lattice-btn" disabled>显示晶格</button>
+                <button id="toggle-labels" class="btn toggle-labels-btn" disabled>显示原子标签</button>
+            </div>
         </div>
 
         <div class="viewer-container">
@@ -134,8 +125,6 @@
     let viewer = null;
     let latticeVisible = false;
     let labelsVisible = false;
-    let currentLabelSize = 0.8;
-    let currentLabelColor = 'blue';
 
     fetch('db.json')
         .then(response => response.json())
@@ -221,8 +210,8 @@
         atoms.forEach(atom => {
             viewer.addLabel(atom.elem, {
                 position: atom,
-                fontSize: currentLabelSize,
-                fontColor: currentLabelColor,
+                fontSize: 0.8,  // 固定标签大小
+                fontColor: 'blue',  // 固定标签颜色
                 backgroundColor: 0xeeeeee,
                 backgroundOpacity: 0.7,
                 inFront: true
@@ -244,32 +233,34 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = material_${id}.cif;
+        a.download = `material_${id}.cif`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     });
 
-    // 显示晶格
+    // 切换晶格显示
     document.getElementById('toggle-lattice').addEventListener('click', function() {
-        if (!viewer || latticeVisible) return;
+        if (!viewer) return;
         
-        latticeVisible = true;
-        this.textContent = "晶格已显示";  // 不再切换隐藏
+        latticeVisible = !latticeVisible;
+        this.textContent = latticeVisible ? "隐藏晶格" : "显示晶格";
         
+        // 重新渲染整个结构
         viewer.removeAllModels();
         viewer.addModel(currentCIF, "cif");
         renderAtomsAndBonds();
     });
-    
-    // 显示原子标签
+
+    // 切换原子标签显示
     document.getElementById('toggle-labels').addEventListener('click', function() {
-        if (!viewer || labelsVisible) return;
+        if (!viewer) return;
         
-        labelsVisible = true;
-        this.textContent = "标签已显示";  // 不再切换隐藏
+        labelsVisible = !labelsVisible;
+        this.textContent = labelsVisible ? "隐藏原子标签" : "显示原子标签";
         
+        // 重新渲染整个结构
         viewer.removeAllModels();
         viewer.addModel(currentCIF, "cif");
         renderAtomsAndBonds();
@@ -291,13 +282,13 @@
             const fx = x / cell[0][0];
             const fy = y / cell[1][1];
             const fz = z / cell[2][2];
-            cif += ${symbols[i]} ${fx.toFixed(6)} ${fy.toFixed(6)} ${fz.toFixed(6)}\n;
+            cif += `${symbols[i]} ${fx.toFixed(6)} ${fy.toFixed(6)} ${fz.toFixed(6)}\n`;
         }
         return cif;
     }
 
     function formatFormula(formula) {
-        return formula.replace(/(\D)(\d+)/g, (_, element, num) => ${element}<sub>${num}</sub>);
+        return formula.replace(/(\D)(\d+)/g, (_, element, num) => `${element}<sub>${num}</sub>`);
     }
     </script>
 </body>
